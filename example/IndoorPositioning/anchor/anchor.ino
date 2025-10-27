@@ -62,28 +62,41 @@ void setup()
     Serial.begin(115200);
     delay(1000);
 
+    Serial.println("=======================================");
+    Serial.println("ESP32 UWB Anchor Starting");
+    Serial.println("=======================================");
+
     // Initialize DW3000
     Serial.println("Initializing DW3000 Anchor...");
     
     spiBegin(PIN_IRQ, PIN_RST);
     spiSelect(PIN_SS);
-    delay(2);
+    delay(100);  // Longer delay for DW3000 to stabilize
 
+    int idle_attempts = 0;
     while (!dwt_checkidlerc()) { 
-        Serial.println("IDLE FAILED"); 
+        idle_attempts++;
+        Serial.print("IDLE CHECK FAILED - Attempt ");
+        Serial.println(idle_attempts);
+        if (idle_attempts > 10) {
+            Serial.println("ERROR: DW3000 not responding - continuing anyway");
+            break;
+        }
         delay(1000);
     }
     
     if (dwt_initialise(DWT_DW_INIT) == DWT_ERROR) { 
-        Serial.println("INIT FAILED"); 
-        while(1) delay(1000);
+        Serial.println("ERROR: DW3000 init failed - continuing anyway"); 
+    } else {
+        Serial.println("DW3000 driver initialized successfully");
     }
 
     dwt_setleds(DWT_LEDS_ENABLE | DWT_LEDS_INIT_BLINK);
     
     if (dwt_configure(&config)) { 
-        Serial.println("CONFIG FAILED"); 
-        while(1) delay(1000);
+        Serial.println("ERROR: DW3000 config failed - continuing anyway"); 
+    } else {
+        Serial.println("DW3000 configured successfully");
     }
 
     dwt_configuretxrf(&txconfig_options);
@@ -164,8 +177,13 @@ void processPolls()
 
 void sendResponse(uint8_t seq)
 {
-    // Get poll receive timestamp using library function
-    poll_rx_ts = get_rx_timestamp_u64();
+    // Get poll receive timestamp using DW3000 function
+    uint8_t rx_ts_bytes[5];
+    dwt_readrxtimestamp(rx_ts_bytes);
+    poll_rx_ts = 0;
+    for (int i = 4; i >= 0; i--) {
+        poll_rx_ts = (poll_rx_ts << 8) + rx_ts_bytes[i];
+    }
     
     // Prepare response message
     tx_resp_msg[2] = seq;  // Copy sequence number
@@ -183,8 +201,13 @@ void sendResponse(uint8_t seq)
     // Wait for TX completion
     while (!(dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS_BIT_MASK)) { /* wait */ }
     
-    // Get response transmit timestamp using library function
-    resp_tx_ts = get_tx_timestamp_u64();
+    // Get response transmit timestamp using DW3000 function
+    uint8_t tx_ts_bytes[5];
+    dwt_readtxtimestamp(tx_ts_bytes);
+    resp_tx_ts = 0;
+    for (int i = 4; i >= 0; i--) {
+        resp_tx_ts = (resp_tx_ts << 8) + tx_ts_bytes[i];
+    }
     
     // Write timestamps into message for next poll
     resp_tx_ts_to_msg(tx_resp_msg, RESP_MSG_POLL_RX_TS_IDX, poll_rx_ts);

@@ -62,52 +62,39 @@ float dwt_readrxpower();  // Simplified RX power reading
 void setup()
 {
     Serial.begin(115200);
+    delay(1000);  // Give serial time to initialize
+    
+    Serial.println("=======================================");
+    Serial.println("ESP32 UWB Tag Starting");
+    Serial.println("=======================================");
 
-    WiFi.mode(WIFI_STA);
-    WiFi.setSleep(false);
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED)
-    {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println("Connected");
-    Serial.print("IP Address:");
-    Serial.println(WiFi.localIP());
-
-    if (client.connect(host, 80))
-    {
-        Serial.println("Success");
-        client.print(String("GET /") + " HTTP/1.1\r\n" +
-                     "Host: " + host + "\r\n" +
-                     "Connection: close\r\n" +
-                     "\r\n");
-    }
-
-    delay(1000);
-
-    // Initialize DW3000
+    // Initialize DW3000 FIRST (before WiFi to avoid conflicts)
     Serial.println("Initializing DW3000...");
     
     spiBegin(PIN_IRQ, PIN_RST);
     spiSelect(PIN_SS);
-    delay(2);
+    delay(100);  // Longer delay for DW3000 to stabilize
 
+    int idle_attempts = 0;
     while (!dwt_checkidlerc()) { 
-        Serial.println("IDLE FAILED"); 
+        idle_attempts++;
+        Serial.print("IDLE CHECK FAILED - Attempt ");
+        Serial.println(idle_attempts);
+        if (idle_attempts > 10) {
+            Serial.println("ERROR: DW3000 not responding - continuing anyway");
+            break;
+        }
         delay(1000);
     }
-    
+
     if (dwt_initialise(DWT_DW_INIT) == DWT_ERROR) { 
-        Serial.println("INIT FAILED"); 
-        while(1) delay(1000);
+        Serial.println("ERROR: DW3000 init failed - continuing anyway"); 
     }
 
     dwt_setleds(DWT_LEDS_ENABLE | DWT_LEDS_INIT_BLINK);
     
     if (dwt_configure(&config)) { 
-        Serial.println("CONFIG FAILED"); 
-        while(1) delay(1000);
+        Serial.println("ERROR: DW3000 config failed - continuing anyway"); 
     }
 
     dwt_configuretxrf(&txconfig_options);
@@ -115,7 +102,39 @@ void setup()
     dwt_setrxtimeout(0);  // No RX timeout
 
     Serial.println("DW3000 initialized: ch=5, PRL=128, code=3/3, 6.8M");
-    Serial.println("Running as UWB Tag for indoor positioning");
+
+    // Initialize WiFi with timeout
+    Serial.println("Starting WiFi connection...");
+    WiFi.mode(WIFI_STA);
+    WiFi.setSleep(false);
+    WiFi.begin(ssid, password);
+    
+    int wifi_attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && wifi_attempts < 20)
+    {
+        delay(500);
+        Serial.print(".");
+        wifi_attempts++;
+    }
+    
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\nWiFi Connected!");
+        Serial.print("IP Address: ");
+        Serial.println(WiFi.localIP());
+        
+        if (client.connect(host, 80))
+        {
+            Serial.println("UDP connection successful");
+            client.print(String("GET /") + " HTTP/1.1\r\n" +
+                         "Host: " + host + "\r\n" +
+                         "Connection: close\r\n" +
+                         "\r\n");
+        } else {
+            Serial.println("UDP connection failed - continuing anyway");
+        }
+    } else {
+        Serial.println("\nWiFi connection failed - continuing anyway");
+    }
 
     uwb_data = init_link();
 }
@@ -128,17 +147,24 @@ void loop()
     // Send UDP data every second
     if ((millis() - runtime) > 1000)
     {
-        make_link_json(uwb_data, &all_json);
-        send_udp(&all_json);
+        if (WiFi.status() == WL_CONNECTED) {
+            make_link_json(uwb_data, &all_json);
+            send_udp(&all_json);
+        }
         runtime = millis();
     }
     
     // Heartbeat every 5 seconds
     if ((millis() - heartbeat_time) > 5000)
     {
-        Serial.println("UWB Tag heartbeat - WiFi connected, ranging active");
+        Serial.print("HEARTBEAT: UWB Tag active, WiFi: ");
+        Serial.print(WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
+        Serial.print(", Free heap: ");
+        Serial.println(ESP.getFreeHeap());
         heartbeat_time = millis();
     }
+    
+    delay(10);  // Small delay to prevent watchdog issues
 }
 
 void performRanging()
