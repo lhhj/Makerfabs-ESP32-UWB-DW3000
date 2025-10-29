@@ -142,7 +142,7 @@ void delete_link(struct MyLink *p, uint16_t addr)
     return;
 }
 
-void make_link_json(struct MyLink *p, String *s)
+void make_link_json(struct f *p, String *s)
 {
 #ifdef SERIAL_DEBUG
     Serial.println("make_link_json");

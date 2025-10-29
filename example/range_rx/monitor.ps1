@@ -22,15 +22,9 @@ Write-Host "Press Ctrl+C to stop monitoring" -ForegroundColor Yellow
 Write-Host ""
 
 # Check if arduino-cli is available
-if (Get-Command "arduino-cli" -ErrorAction SilentlyContinue) {
-    # Use arduino-cli monitor and tee output
-    "K4W Discovery Log - Started at $(Get-Date)" | Out-File -FilePath $logFile
-    "Port: $Port | Baud: $BaudRate" | Out-File -FilePath $logFile -Append
-    "=" * 60 | Out-File -FilePath $logFile -Append
-    
-    arduino-cli monitor -p $Port -c baudrate=$BaudRate | Tee-Object -FilePath $logFile -Append
-} else {
-    Write-Host "arduino-cli not found, trying .NET SerialPort..." -ForegroundColor Yellow
+if (!(Get-Command "arduino-cli" -ErrorAction SilentlyContinue)) {
+    Write-Host "ERROR: arduino-cli not found" -ForegroundColor Red
+    Write-Host "Trying alternative method..." -ForegroundColor Yellow
     
     # Try using .NET SerialPort directly
     try {
@@ -63,6 +57,14 @@ if (Get-Command "arduino-cli" -ErrorAction SilentlyContinue) {
             $port_obj.Close()
         }
     }
+}
+else {
+    # Use arduino-cli monitor and tee output
+    "K4W Discovery Log - Started at $(Get-Date)" | Out-File -FilePath $logFile
+    "Port: $Port | Baud: $BaudRate" | Out-File -FilePath $logFile -Append
+    "=" * 60 | Out-File -FilePath $logFile -Append
+    
+    arduino-cli monitor -p $Port -c baudrate=$BaudRate | Tee-Object -FilePath $logFile -Append
 }
 
 Write-Host ""

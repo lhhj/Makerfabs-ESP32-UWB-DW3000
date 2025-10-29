@@ -57,12 +57,12 @@ void enableDebounceClock() {
 
 void sleepms(uint32_t x)
 {
-  delay(x); // hand off to Arduino core for millisecond waits
+  //_delay_ms(x); // delay by milliseconds
 }
 
 int sleepus(uint32_t x)
 {
-  delayMicroseconds(x); // ensure PLL wait loops get real microsecond delays
+  //_delay_us(x); // delay by microseconds
   return 0;
 }
 
@@ -529,11 +529,16 @@ void port_set_dw_ic_spi_fastrate(uint8_t irq, uint8_t rst, uint8_t ss) {
 }
 
 uint32_t port_GetEXT_IRQStatus(void) {
-    return 0; // Default implementation
+  // Minimal implementation: return 0 meaning no external IRQ active.
+  // On platforms where the external IRQ line is used you may want to
+  // check the digitalRead of the IRQ pin and return non-zero when active.
+  return 0;
 }
 
 uint32_t port_CheckEXT_IRQ(void) {
-    return 0; // Default implementation
+  // Minimal implementation: return 0 meaning no external IRQ pending.
+  // Replace with actual IRQ-check logic on target platform if needed.
+  return 0;
 }
 
 void port_DisableEXT_IRQ(void) {

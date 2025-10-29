@@ -1,4 +1,4 @@
-#include "dwt_uwb_driver.h"
+#include "dw3000.h"
 #include "SPI.h"
 
 extern SPISettings _fastSPI;
@@ -18,11 +18,11 @@ extern SPISettings _fastSPI;
 
 /* Default communication configuration. We use default non-STS DW mode. */
 static dwt_config_t config = {
-  9,                /* Channel number. */
+    5,                /* Channel number. */
     DWT_PLEN_128,     /* Preamble length. Used in TX only. */
     DWT_PAC8,         /* Preamble acquisition chunk size. Used in RX only. */
-  10,               /* TX preamble code. Used in TX only. */
-  10,               /* RX preamble code. Used in RX only. */
+    9,                /* TX preamble code. Used in TX only. */
+    9,                /* RX preamble code. Used in RX only. */
     1,                /* 0 to use standard 8 symbol SFD, 1 to use non-standard 8 symbol, 2 for non-standard 16 symbol SFD and 3 for 4z 8 symbol SDF type */
     DWT_BR_6M8,       /* Data rate. */
     DWT_PHRMODE_STD,  /* PHY header mode. */
@@ -41,7 +41,7 @@ static uint32_t status_reg = 0;
 static uint64_t poll_rx_ts;
 static uint64_t resp_tx_ts;
 
-extern dwt_txconfig_t txconfig_options_ch9;
+extern dwt_txconfig_t txconfig_options;
 
 void setup()
 {
@@ -80,7 +80,7 @@ void setup()
   }
 
   /* Configure the TX spectrum parameters (power, PG delay and PG count) */
-  dwt_configuretxrf(&txconfig_options_ch9);
+  dwt_configuretxrf(&txconfig_options);
 
   /* Apply default antenna delay value. See NOTE 2 below. */
   dwt_setrxantennadelay(RX_ANT_DLY);

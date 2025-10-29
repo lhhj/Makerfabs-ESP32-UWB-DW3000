@@ -60,7 +60,14 @@ decaIrqStatus_t decamutexon(void)
     }
     return s ;   // return state before disable, value is used to re-enable in decamutexoff call
     */
-    return 0; // Default return value
+    /*
+     * Minimal safe implementation for platforms where external IRQ state
+     * isn't tracked here. Enter critical section above and return 0
+     * (no external IRQ) so callers can use decamutexoff(0).
+     * If your platform requires preserving external IRQ state, replace
+     * this with the port_GetEXT_IRQStatus() logic above.
+     */
+    return 0;
 }
 
 /*! ------------------------------------------------------------------------------------------------------------------

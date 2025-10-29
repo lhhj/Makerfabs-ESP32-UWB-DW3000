@@ -1479,19 +1479,16 @@ int dwt_configure(dwt_config_t *config)
     // auto cal the PLL and change to IDLE_PLL state
     dwt_setdwstate(DWT_DW_IDLE);
 
-    flag = 1;
-    cnt = 0;
-    while (cnt < MAX_RETRIES_FOR_PLL)
+    for (flag=1,cnt=0;cnt<MAX_RETRIES_FOR_PLL;cnt++)
     {
-        deca_usleep(DELAY_100uUSec);
-        if (dwt_read8bitoffsetreg(SYS_STATUS_ID, 0) & SYS_STATUS_CP_LOCK_BIT_MASK)
-        {
-            UART_puts("PLL is locked..");
-            UART_puts("\r\n");
-            flag = 0;
+        deca_usleep(DELAY_20uUSec);
+        if ((dwt_read8bitoffsetreg(SYS_STATUS_ID, 0) & SYS_STATUS_CP_LOCK_BIT_MASK))
+        {//PLL is locked
+      UART_puts("PLL is locked..");
+      UART_puts("\r\n");
+            flag=0;
             break;
         }
-        cnt++;
     }
     if (flag)
     { 
