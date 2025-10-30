@@ -1,0 +1,15 @@
+[TAG] A0 = 2.35 m
+[TAG] A1 = 3.42 m
+[TAG] A2 = 1.89 m
+[TAG] A0 = 2.41 m
+[TAG] A1 = 3.38 m
+[TAG] A2 = 1.95 m
+[TAG] A0 = 2.48 m
+[TAG] A1 = 3.31 m
+[TAG] A2 = 2.02 m
+[TAG] A0 = 2.55 m
+[TAG] A1 = 3.24 m
+[TAG] A2 = 2.11 m
+[TAG] A0 = 2.63 m
+[TAG] A1 = 3.15 m
+[TAG] A2 = 2.20 m
