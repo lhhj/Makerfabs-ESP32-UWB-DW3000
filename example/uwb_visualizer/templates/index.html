@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UWB Tag Visualizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            padding: 30px;
+        }
+
+        .visualization-panel {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 20px;
+            position: relative;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: 600px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #e2e8f0;
+            overflow: hidden;
+        }
+
+        #visualizationCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .anchor-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .anchor-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            font-size: 14px;
+        }
+
+        .anchor-label {
+            font-weight: 600;
+            color: #dc2626;
+        }
+
+        .anchor-coords {
+            color: #64748b;
+            font-family: monospace;
+        }
+
+        .distance-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .distance-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            font-size: 14px;
+        }
+
+        .distance-label {
+            font-weight: 600;
+            color: #3b82f6;
+        }
+
+        .distance-value {
+            color: #64748b;
+            font-family: monospace;
+        }
+
+        .position-display {
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .position-coords {
+            font-size: 24px;
+            font-weight: 600;
+            color: #10b981;
+            font-family: monospace;
+            margin-top: 10px;
+        }
+
+        .position-label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .no-data {
+            text-align: center;
+            color: #94a3b8;
+            font-style: italic;
+            padding: 20px;
+        }
+
+        .legend {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            font-size: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .legend-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .canvas-container {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 UWB Tag Visualizer</h1>
+            <div class="status">
+                <div class="status-indicator" id="statusIndicator"></div>
+                <span id="statusText">Connecting...</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="visualization-panel">
+                <div class="canvas-container">
+                    <canvas id="visualizationCanvas"></canvas>
+                </div>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #dc2626;"></div>
+                        <span>Anchors</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #10b981;"></div>
+                        <span>Current Position</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #3b82f6; opacity: 0.5;"></div>
+                        <span>Path History</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="panel">
+                    <div class="panel-title">📍 Current Position</div>
+                    <div class="position-display">
+                        <div class="position-label">X, Y (meters)</div>
+                        <div class="position-coords" id="currentPosition">
+                            ---, ---
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">📏 Distances</div>
+                    <div class="distance-list" id="distanceList">
+                        <div class="no-data">Waiting for data...</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">⚓ Anchors</div>
+                    <div class="anchor-list" id="anchorList">
+                        <div class="no-data">Loading anchors...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('visualizationCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // State
+        let config = {
+            anchors: {},
+            image_transform: null,
+            floorplan_available: false,
+            max_history: 500
+        };
+        let currentPosition = null;
+        let positionHistory = [];
+        let distances = {};
+        let floorplanImage = null;
+        let connected = false;
+
+        // Canvas dimensions and transform
+        let canvasWidth, canvasHeight;
+        let viewBounds = { minX: -1, maxX: 6, minY: -1, maxY: 8 };
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            canvasWidth = canvas.width;
+            canvasHeight = canvas.height;
+            draw();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Status update
+        function updateConnectionStatus(status) {
+            const statusText = document.getElementById('statusText');
+            const statusIndicator = document.getElementById('statusIndicator');
+            statusText.textContent = status;
+            connected = (status === 'Connected');
+        }
+
+        // Load configuration
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                config = await response.json();
+                
+                // Calculate view bounds from anchors
+                if (Object.keys(config.anchors).length > 0) {
+                    const xs = Object.values(config.anchors).map(a => a[0]);
+                    const ys = Object.values(config.anchors).map(a => a[1]);
+                    const margin = 1.0;
+                    viewBounds = {
+                        minX: Math.min(...xs) - margin,
+                        maxX: Math.max(...xs) + margin,
+                        minY: Math.min(...ys) - margin,
+                        maxY: Math.max(...ys) + margin
+                    };
+                }
+                
+                // Load floorplan if available
+                if (config.floorplan_available) {
+                    floorplanImage = new Image();
+                    floorplanImage.onload = () => {
+                        draw();
+                    };
+                    floorplanImage.src = '/api/floorplan';
+                }
+                
+                updateAnchorList();
+                draw();
+                updateConnectionStatus('Connected');
+            } catch (error) {
+                console.error('Error loading config:', error);
+                updateConnectionStatus('Error');
+            }
+        }
+
+        // Poll for updates
+        let lastUpdateTime = 0;
+        async function pollUpdates() {
+            try {
+                // This would be better with WebSocket, but polling works for demo
+                // In production, the WebSocket version should work with proper socket.io client
+                const response = await fetch('/api/current_state');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.position) {
+                        currentPosition = data.position;
+                        positionHistory.push(currentPosition);
+                        
+                        if (positionHistory.length > config.max_history) {
+                            positionHistory.shift();
+                        }
+                    }
+                    
+                    if (data.distances) {
+                        distances = data.distances;
+                    }
+                    
+                    updateUI();
+                    draw();
+                }
+            } catch (error) {
+                // Silent failure for polling
+            }
+        }
+
+        // Start polling every 200ms
+        setInterval(pollUpdates, 200);
+
+        // Coordinate transformation
+        function worldToCanvas(x, y) {
+            const scaleX = canvasWidth / (viewBounds.maxX - viewBounds.minX);
+            const scaleY = canvasHeight / (viewBounds.maxY - viewBounds.minY);
+            
+            const canvasX = (x - viewBounds.minX) * scaleX;
+            const canvasY = canvasHeight - (y - viewBounds.minY) * scaleY;
+            
+            return { x: canvasX, y: canvasY };
+        }
+
+        // Drawing functions
+        function draw() {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            
+            // Draw floorplan if available
+            if (floorplanImage && floorplanImage.complete && config.image_transform) {
+                drawFloorplan();
+            }
+            
+            // Draw grid
+            drawGrid();
+            
+            // Draw anchors
+            drawAnchors();
+            
+            // Draw path history
+            if (positionHistory.length > 0) {
+                drawPath();
+            }
+            
+            // Draw current position
+            if (currentPosition) {
+                drawCurrentPosition();
+            }
+        }
+
+        function drawFloorplan() {
+            const transform = config.image_transform;
+            
+            if (transform.type === 'scale_origin') {
+                // Map image corners to world coordinates
+                const [h, w] = transform.image_shape;
+                const [u0, v0] = transform.origin_pixel;
+                const [x0, y0] = transform.origin_world;
+                const ppm = transform.ppm;
+                
+                // Top-left corner (pixel 0,0)
+                const wx_tl = x0 + (0 - u0) / ppm;
+                const wy_tl = y0 - (0 - v0) / ppm;
+                
+                // Bottom-right corner (pixel w,h)
+                const wx_br = x0 + (w - u0) / ppm;
+                const wy_br = y0 - (h - v0) / ppm;
+                
+                const tl = worldToCanvas(wx_tl, wy_tl);
+                const br = worldToCanvas(wx_br, wy_br);
+                
+                ctx.save();
+                ctx.globalAlpha = 0.5;
+                ctx.drawImage(floorplanImage, tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+                ctx.restore();
+            }
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            
+            // Vertical lines
+            for (let x = Math.ceil(viewBounds.minX); x <= viewBounds.maxX; x++) {
+                const pos = worldToCanvas(x, 0);
+                ctx.beginPath();
+                ctx.moveTo(pos.x, 0);
+                ctx.lineTo(pos.x, canvasHeight);
+                ctx.stroke();
+            }
+            
+            // Horizontal lines
+            for (let y = Math.ceil(viewBounds.minY); y <= viewBounds.maxY; y++) {
+                const pos = worldToCanvas(0, y);
+                ctx.beginPath();
+                ctx.moveTo(0, pos.y);
+                ctx.lineTo(canvasWidth, pos.y);
+                ctx.stroke();
+            }
+        }
+
+        function drawAnchors() {
+            for (const [label, coords] of Object.entries(config.anchors)) {
+                const pos = worldToCanvas(coords[0], coords[1]);
+                
+                // Draw anchor square
+                ctx.fillStyle = '#dc2626';
+                ctx.fillRect(pos.x - 6, pos.y - 6, 12, 12);
+                
+                // Draw label
+                ctx.fillStyle = '#dc2626';
+                ctx.font = 'bold 14px sans-serif';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(label, pos.x - 8, pos.y - 8);
+            }
+        }
+
+        function drawPath() {
+            if (positionHistory.length < 2) return;
+            
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.5;
+            ctx.beginPath();
+            
+            const firstPos = worldToCanvas(positionHistory[0].x, positionHistory[0].y);
+            ctx.moveTo(firstPos.x, firstPos.y);
+            
+            for (let i = 1; i < positionHistory.length; i++) {
+                const pos = worldToCanvas(positionHistory[i].x, positionHistory[i].y);
+                ctx.lineTo(pos.x, pos.y);
+            }
+            
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+        }
+
+        function drawCurrentPosition() {
+            const pos = worldToCanvas(currentPosition.x, currentPosition.y);
+            
+            // Draw green circle
+            ctx.fillStyle = '#10b981';
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Draw white border
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // UI update functions
+        function updateUI() {
+            updatePositionDisplay();
+            updateDistanceList();
+        }
+
+        function updatePositionDisplay() {
+            const posDisplay = document.getElementById('currentPosition');
+            if (currentPosition) {
+                posDisplay.textContent = `${currentPosition.x.toFixed(2)}, ${currentPosition.y.toFixed(2)}`;
+            } else {
+                posDisplay.textContent = '---, ---';
+            }
+        }
+
+        function updateDistanceList() {
+            const listEl = document.getElementById('distanceList');
+            
+            if (Object.keys(distances).length === 0) {
+                listEl.innerHTML = '<div class="no-data">Waiting for data...</div>';
+                return;
+            }
+            
+            listEl.innerHTML = '';
+            for (const [anchor, distance] of Object.entries(distances)) {
+                const item = document.createElement('div');
+                item.className = 'distance-item';
+                item.innerHTML = `
+                    <span class="distance-label">${anchor}</span>
+                    <span class="distance-value">${distance.toFixed(2)} m</span>
+                `;
+                listEl.appendChild(item);
+            }
+        }
+
+        function updateAnchorList() {
+            const listEl = document.getElementById('anchorList');
+            
+            if (Object.keys(config.anchors).length === 0) {
+                listEl.innerHTML = '<div class="no-data">No anchors configured</div>';
+                return;
+            }
+            
+            listEl.innerHTML = '';
+            for (const [label, coords] of Object.entries(config.anchors)) {
+                const item = document.createElement('div');
+                item.className = 'anchor-item';
+                item.innerHTML = `
+                    <span class="anchor-label">${label}</span>
+                    <span class="anchor-coords">${coords[0].toFixed(2)}, ${coords[1].toFixed(2)}</span>
+                `;
+                listEl.appendChild(item);
+            }
+        }
+
+        // Initial load
+        loadConfig();
+        
+        // Initial draw
+        draw();
+    </script>
+</body>
+</html>
