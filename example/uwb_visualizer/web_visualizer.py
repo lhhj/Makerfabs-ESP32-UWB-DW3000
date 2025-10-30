@@ -145,7 +145,11 @@ def load_anchors(anchors_file):
 
 
 def data_processor():
-    """Background thread to process incoming data"""
+    """Background thread to process incoming data and store for HTTP API access.
+    
+    Reads distance measurements from the queue, computes tag position via trilateration,
+    and updates global state that is accessible via HTTP endpoints.
+    """
     global latest_distances, position_history
     
     while True:
