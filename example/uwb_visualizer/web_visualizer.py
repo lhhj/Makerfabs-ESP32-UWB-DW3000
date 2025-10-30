@@ -20,8 +20,6 @@ from pathlib import Path
 
 import numpy as np
 from flask import Flask, render_template, jsonify, request
-from flask_socketio import SocketIO, emit
-from flask_cors import CORS
 
 try:
     import serial
@@ -120,8 +118,6 @@ def trilaterate(anchors, distances):
 # Global state
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'uwb-visualizer-secret'
-CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
 
 data_queue = queue.Queue()
 reader_thread = None
@@ -149,7 +145,7 @@ def load_anchors(anchors_file):
 
 
 def data_processor():
-    """Background thread to process incoming data and emit via SocketIO"""
+    """Background thread to process incoming data"""
     global latest_distances, position_history
     
     while True:
@@ -164,19 +160,9 @@ def data_processor():
                     position_history.append({'x': pos[0], 'y': pos[1], 'timestamp': time.time()})
                     if len(position_history) > max_history:
                         position_history = position_history[-max_history:]
-                    
-                    # Emit position update via WebSocket
-                    socketio.emit('position_update', {
-                        'position': {'x': pos[0], 'y': pos[1]},
-                        'distances': dict(latest_distances)
-                    })
+                    print(f'Position: ({pos[0]:.2f}, {pos[1]:.2f}) m')
                 except Exception as e:
                     print(f'Trilateration failed: {e}')
-            else:
-                # Emit distance update even if we can't compute position
-                socketio.emit('distance_update', {
-                    'distances': dict(latest_distances)
-                })
         except queue.Empty:
             continue
         except Exception as e:
@@ -196,27 +182,6 @@ def get_current_state():
         'position': current_pos,
         'distances': dict(latest_distances)
     })
-
-
-@app.route('/static/socket.io.min.js')
-def serve_socketio_client():
-    """Serve socket.io client library"""
-    from flask import send_file
-    import flask_socketio
-    import os
-    socketio_path = os.path.join(os.path.dirname(flask_socketio.__file__), 'static', 'socket.io.min.js')
-    if os.path.exists(socketio_path):
-        return send_file(socketio_path, mimetype='application/javascript')
-    # Fallback: generate a simple client if file not found
-    return """
-    // Minimal Socket.IO client stub
-    window.io = function() {
-        return {
-            on: function() {},
-            emit: function() {}
-        };
-    };
-    """, 200, {'Content-Type': 'application/javascript'}
 
 
 @app.route('/')
@@ -285,19 +250,6 @@ def get_history():
     })
 
 
-@socketio.on('connect')
-def handle_connect():
-    """Handle client connection"""
-    print('Client connected')
-    emit('connected', {'data': 'Connected to UWB Visualizer'})
-
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    """Handle client disconnection"""
-    print('Client disconnected')
-
-
 def main():
     global reader_thread, max_history
     
@@ -328,8 +280,8 @@ def main():
     print(f'\nUWB Visualizer Web Server starting...')
     print(f'Open http://localhost:{args.web_port} in your web browser')
     
-    # Run Flask app with SocketIO
-    socketio.run(app, host=args.host, port=args.web_port, debug=False)
+    # Run Flask app
+    app.run(host=args.host, port=args.web_port, debug=False, threaded=True)
 
 
 if __name__ == '__main__':
