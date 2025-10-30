@@ -74,6 +74,7 @@ class ReaderThread(threading.Thread):
 
         try:
             ser = serial.Serial(self.port, self.baud, timeout=1)
+            print(f'Successfully opened serial port {self.port} at {self.baud} baud')
         except Exception as e:
             print('Failed to open serial port:', e)
             return
@@ -81,13 +82,19 @@ class ReaderThread(threading.Thread):
         while not self._stop.is_set():
             try:
                 line = ser.readline().decode('utf-8', errors='ignore')
-            except Exception:
+            except Exception as e:
+                print(f'Error reading serial: {e}')
                 continue
             if not line:
                 continue
+            # Print raw line to see what we're receiving
+            print(f'Raw: {line.strip()}')
             aid, d = parse_line(line)
             if aid:
+                print(f'Parsed: {aid} = {d} m')
                 self.out_q.put((time.time(), aid, d))
+            else:
+                print(f'Failed to parse line')
 
 
 def trilaterate(anchors, distances):
@@ -137,6 +144,10 @@ def run_anchor_editor(floorplan_path, anchors_file, anchors, image_transform=Non
 
     transform = None
     artists = {}
+    
+    # keep reference to initial image extent for recalibration
+    initial_extent = None
+    initial_origin = 'upper'
 
     # show image initially in pixel coords
     im = ax.imshow(img, origin='upper')
@@ -251,10 +262,19 @@ def run_anchor_editor(floorplan_path, anchors_file, anchors, image_transform=Non
 
     def start_scale_calibration():
         # Option B flow: click two scale-bar endpoints, enter real length, then click origin and enter world coords
+        nonlocal initial_extent, initial_origin
+        # Reset to pixel view if not already
+        if transform is not None:
+            # redisplay image in pixel coords
+            ax.clear()
+            ax.imshow(img, origin='upper')
+            initial_extent = None
+            initial_origin = 'upper'
+            redraw_anchors()
         scale_points.clear()
         calib_state['mode'] = 'scale_bar'
         calib_state['await_clicks'] = True
-        # Use non-blocking instruction in the figure instead of a modal dialog
+        # Use non-blocking instruction in the figure title only
         ax.set_title('Scale calibration: click TWO endpoints of the scale bar (endpoint 1 then endpoint 2).')
         fig.canvas.draw_idle()
 
@@ -322,8 +342,9 @@ def run_anchor_editor(floorplan_path, anchors_file, anchors, image_transform=Non
                     return
                 # pixels per meter
                 ppm_local = pix_dist / float(real_len)
-                # now ask for origin pixel: instruct user to click origin
-                messagebox.showinfo('Origin', 'Now click the image point that should be the world origin (e.g. bottom-left corner), then enter its world coordinates (e.g. 0,0).')
+                # now ask for origin pixel: instruct user to click origin (non-blocking)
+                ax.set_title('Now click the image point that should be the world origin (e.g. bottom-left corner).')
+                fig.canvas.draw_idle()
                 # set mode to origin capture
                 calib_state['mode'] = 'origin'
                 calib_state['await_clicks'] = True
@@ -349,22 +370,24 @@ def run_anchor_editor(floorplan_path, anchors_file, anchors, image_transform=Non
                 messagebox.showerror('Calibration', 'Internal error: ppm missing')
                 return
             # compute world extents from pixel->world linear mapping (no rotation)
+            # Keep image with origin='upper' to avoid flipping the image itself
+            # Just compute the extent to map pixels to world coordinates
             u0, v0 = origin_px
             x0, y0 = float(ox), float(oy)
-            # map image corners
-            def pixel_to_world(u, v):
-                wx = x0 + (u - u0) / ppm_local
-                # v increases downwards in pixels; world y we choose upwards
-                wy = y0 + (v0 - v) / ppm_local
-                return wx, wy
-
-            corners_px = [(0, 0), (w, 0), (w, h), (0, h)]
-            world_corners = [pixel_to_world(u, v) for u, v in corners_px]
-            xs = [p[0] for p in world_corners]
-            ys = [p[1] for p in world_corners]
-            extent = [min(xs), max(xs), min(ys), max(ys)]
+            
+            # Define corners in pixel space (origin='upper' convention)
+            # When origin='upper': extent is [left, right, top, bottom] in world coords
+            # top-left corner (pixel 0,0) -> world coords
+            wx_topleft = x0 + (0 - u0) / ppm_local
+            wy_topleft = y0 - (0 - v0) / ppm_local
+            # bottom-right corner (pixel w,h) -> world coords
+            wx_botright = x0 + (w - u0) / ppm_local
+            wy_botright = y0 - (h - v0) / ppm_local
+            
+            # For origin='upper', extent is [left, right, top, bottom]
+            extent = [wx_topleft, wx_botright, wy_botright, wy_topleft]
             ax.clear()
-            ax.imshow(img, extent=extent, origin='lower')
+            ax.imshow(img, extent=extent, origin='upper')
             # store transform as ppm-based mapping
             transform_local = {'type': 'scale_origin', 'ppm': ppm_local, 'origin_pixel': [u0, v0], 'origin_world': [x0, y0], 'image_shape': [h, w]}
             nonlocal_transform_set(transform_local)
@@ -399,7 +422,7 @@ def run_anchor_editor(floorplan_path, anchors_file, anchors, image_transform=Non
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--port', help='Serial port (e.g. COM3 or /dev/ttyUSB0)')
-    p.add_argument('--baud', type=int, default=1115200)
+    p.add_argument('--baud', type=int, default=115200)
     p.add_argument('--logfile', help='Read from a saved log file instead of serial')
     p.add_argument('--anchors', default='anchors.json', help='JSON file with anchor coordinates')
     p.add_argument('--floorplan', help='Optional floorplan image to load as background')
@@ -456,16 +479,17 @@ def main():
                         u0, v0 = image_transform['origin_pixel']
                         x0, y0 = image_transform['origin_world']
                         h, w = img.shape[0], img.shape[1]
-                        def pixel_to_world(u, v):
-                            wx = x0 + (u - u0) / ppm_local
-                            wy = y0 + (v0 - v) / ppm_local
-                            return wx, wy
-                        corners = [(0, 0), (w, 0), (w, h), (0, h)]
-                        world = [pixel_to_world(u, v) for u, v in corners]
-                        xs = [z[0] for z in world]
-                        ys = [z[1] for z in world]
-                        extent = [min(xs), max(xs), min(ys), max(ys)]
-                        ax.imshow(img, extent=extent, origin='lower')
+                        
+                        # Map pixel corners to world coordinates
+                        # Keep origin='upper' to avoid flipping the image
+                        wx_topleft = x0 + (0 - u0) / ppm_local
+                        wy_topleft = y0 - (0 - v0) / ppm_local
+                        wx_botright = x0 + (w - u0) / ppm_local
+                        wy_botright = y0 - (h - v0) / ppm_local
+                        
+                        # For origin='upper', extent is [left, right, top, bottom]
+                        extent = [wx_topleft, wx_botright, wy_botright, wy_topleft]
+                        ax.imshow(img, extent=extent, origin='upper')
                         transform = image_transform
                     else:
                         r = complex(image_transform['r'][0], image_transform['r'][1])
@@ -525,6 +549,7 @@ def main():
             except queue.Empty:
                 break
             latest[aid] = d
+            print(f'Received: {aid} = {d:.2f} m')
             updated = True
         if not updated:
             # nothing new
@@ -541,6 +566,7 @@ def main():
                 ys_p = [p[1] for p in path]
                 path_line.set_data(xs_p, ys_p)
                 current_point.set_data([pos[0]], [pos[1]])
+                print(f'Position: ({pos[0]:.2f}, {pos[1]:.2f}) m')
                 # expand axis if outside
                 ax.relim()
                 ax.autoscale_view(True, True, True)
