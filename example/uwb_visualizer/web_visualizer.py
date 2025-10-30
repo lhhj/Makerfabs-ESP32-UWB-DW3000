@@ -230,6 +230,7 @@ def get_config():
 def get_floorplan():
     """Serve floorplan image"""
     from flask import send_file
+    import os.path
     anchors_file = Path(__file__).parent / 'anchors.json'
     
     if os.path.exists(anchors_file):
@@ -238,9 +239,20 @@ def get_floorplan():
             if '_image_transform' in anchors_raw:
                 image_transform = anchors_raw['_image_transform']
                 floorplan_file = image_transform.get('image_file', 'floorplan.png')
+                
+                # Security: Prevent path traversal by ensuring file is in the same directory
+                # and normalize the path
+                floorplan_file = os.path.basename(floorplan_file)
                 floorplan_path = Path(__file__).parent / floorplan_file
-                if os.path.exists(floorplan_path):
-                    return send_file(floorplan_path, mimetype='image/png')
+                
+                # Ensure the resolved path is still within the application directory
+                app_dir = Path(__file__).parent.resolve()
+                try:
+                    floorplan_resolved = floorplan_path.resolve()
+                    if floorplan_resolved.parent == app_dir and floorplan_resolved.exists():
+                        return send_file(floorplan_resolved, mimetype='image/png')
+                except (OSError, ValueError):
+                    pass
     
     # Return 404 if no floorplan
     return jsonify({'error': 'Floorplan not found'}), 404
