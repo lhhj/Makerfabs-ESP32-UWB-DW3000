@@ -97,14 +97,29 @@ class ReaderThread(threading.Thread):
                 print(f'Failed to parse line')
 
 
-def trilaterate(anchors, distances):
+def trilaterate(anchors, distances, max_distance=None):
     """Compute 2D position given anchors dict {A1:[x,y],...} and distances dict {A1: r1,...}
     Requires at least 3 anchors. Returns (x,y)
     Uses linear least squares on difference of equations.
+    
+    Args:
+        anchors: dict mapping anchor IDs to (x,y) positions
+        distances: dict mapping anchor IDs to measured distances
+        max_distance: maximum distance to use anchors; filters out far anchors unless only 3 available
     """
     keys = [k for k in distances.keys() if k in anchors]
     if len(keys) < 3:
         raise ValueError('need at least 3 anchors')
+
+    # Filter by max_distance if specified and we have more than 3 anchors
+    if max_distance is not None and len(keys) > 3:
+        filtered_keys = [k for k in keys if distances[k] <= max_distance]
+        # Only use filtered set if we still have at least 3 anchors
+        if len(filtered_keys) >= 3:
+            keys = filtered_keys
+            print(f'Using {len(keys)} anchors within {max_distance}m (filtered from {len([k for k in distances.keys() if k in anchors])})')
+        else:
+            print(f'Only {len(filtered_keys)} anchors within {max_distance}m, using all {len(keys)} anchors')
 
     pts = np.array([anchors[k] for k in keys], dtype=float)  # Nx2
     rs = np.array([distances[k] for k in keys], dtype=float)  # N
@@ -428,6 +443,7 @@ def main():
     p.add_argument('--floorplan', help='Optional floorplan image to load as background')
     p.add_argument('--edit', action='store_true', help='Open interactive anchor editor for floorplan')
     p.add_argument('--history', type=int, default=500, help='Max points to keep in path')
+    p.add_argument('--max-distance', type=float, default=None, help='Maximum anchor distance to use (meters). Filters out far anchors unless only 3 available')
     args = p.parse_args()
 
     # load anchors file if available
@@ -558,7 +574,7 @@ def main():
         # if we have at least 3 anchors with distances, compute position
         try:
             if len(latest) >= 3:
-                pos = trilaterate(anchors, latest)
+                pos = trilaterate(anchors, latest, max_distance=args.max_distance)
                 path.append(pos)
                 if len(path) > args.history:
                     path[:] = path[-args.history:]
@@ -576,7 +592,7 @@ def main():
 
         return path_line, current_point
 
-    ani = FuncAnimation(fig, update, interval=200, blit=False)
+    ani = FuncAnimation(fig, update, interval=50, blit=False)
 
     try:
         plt.show()
