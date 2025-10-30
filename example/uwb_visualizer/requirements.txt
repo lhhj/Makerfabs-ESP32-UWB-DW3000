@@ -1,3 +1,7 @@
 pyserial
 matplotlib
 numpy
+flask
+flask-socketio
+flask-cors
+python-socketio
