@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UWB Position Visualizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 0;
+            min-height: 600px;
+        }
+
+        .sidebar {
+            background: #f8f9fa;
+            padding: 20px;
+            border-right: 1px solid #e0e0e0;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .panel h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+
+        .anchor-item {
+            background: #e8f5e9;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 5px;
+            border-left: 4px solid #4caf50;
+        }
+
+        .anchor-item.active {
+            background: #c8e6c9;
+            border-left-color: #2e7d32;
+        }
+
+        .anchor-label {
+            font-weight: bold;
+            color: #2e7d32;
+            margin-bottom: 5px;
+        }
+
+        .anchor-coords {
+            font-size: 0.9em;
+            color: #555;
+        }
+
+        .distance {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #1976d2;
+            margin-top: 5px;
+        }
+
+        .tag-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #2196f3;
+        }
+
+        .tag-position {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #1565c0;
+            margin-top: 5px;
+        }
+
+        .canvas-container {
+            position: relative;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #fafafa;
+        }
+
+        #visualCanvas {
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            background: white;
+            cursor: crosshair;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s;
+            width: 100%;
+            margin: 5px 0;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        button:active {
+            background: #4451b8;
+        }
+
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: 600;
+            color: #555;
+            font-size: 0.9em;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 0.9em;
+        }
+
+        .status.connected {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .status.disconnected {
+            background: #ffcdd2;
+            color: #c62828;
+        }
+
+        .info-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 0.85em;
+        }
+
+        .data-input {
+            margin-top: 10px;
+        }
+
+        .data-input textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.85em;
+            resize: vertical;
+        }
+
+        @media (max-width: 1024px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                border-right: none;
+                border-bottom: 1px solid #e0e0e0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 UWB Position Visualizer</h1>
+            <p class="subtitle">Real-time Ultra-Wideband Indoor Positioning</p>
+        </header>
+
+        <div class="content">
+            <aside class="sidebar">
+                <div class="panel">
+                    <h3>Connection</h3>
+                    <div id="connectionStatus" class="status disconnected">
+                        Disconnected
+                    </div>
+                    <div class="controls">
+                        <label>WebSocket URL:</label>
+                        <input type="text" id="wsUrl" value="ws://192.168.4.1:81" placeholder="ws://ip:port">
+                        <button id="connectBtn">Connect</button>
+                        <button id="disconnectBtn" style="display:none;">Disconnect</button>
+                    </div>
+                    <div class="info-box">
+                        💡 Or use manual data input below
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>Manual Data Input</h3>
+                    <div class="data-input">
+                        <label>Paste serial output:</label>
+                        <textarea id="serialInput" rows="4" placeholder="[TAG] A0 = 2.35 m&#10;[TAG] A1 = 3.42 m&#10;[TAG] A2 = 1.89 m"></textarea>
+                        <button id="parseBtn">Parse & Update</button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>Anchors</h3>
+                    <div id="anchorList">
+                        <!-- Anchors will be dynamically added here -->
+                    </div>
+                    <button id="addAnchorBtn">Add Anchor</button>
+                </div>
+
+                <div class="panel">
+                    <h3>Tag Position</h3>
+                    <div class="tag-info">
+                        <div id="tagStatus">No position data</div>
+                        <div class="tag-position" id="tagPosition"></div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>Settings</h3>
+                    <label>Grid Scale (px/meter):</label>
+                    <input type="number" id="scaleInput" value="100" min="20" max="200">
+                    <button id="resetViewBtn">Reset View</button>
+                    <button id="clearPathBtn">Clear Path</button>
+                </div>
+            </aside>
+
+            <main class="canvas-container">
+                <canvas id="visualCanvas" width="800" height="600"></canvas>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const config = {
+            canvasWidth: 800,
+            canvasHeight: 600,
+            scale: 100, // pixels per meter
+            gridSize: 1, // meters
+            anchorRadius: 15,
+            tagRadius: 12,
+            pathMaxLength: 100
+        };
+
+        // State
+        const state = {
+            anchors: [
+                { id: 'A0', x: 0, y: 0, distance: null, color: '#4caf50' },
+                { id: 'A1', x: 3, y: 0, distance: null, color: '#2196f3' },
+                { id: 'A2', x: 1.5, y: 2.6, distance: null, color: '#ff9800' }
+            ],
+            tagPosition: null,
+            tagPath: [],
+            ws: null,
+            isConnected: false,
+            offsetX: 0,
+            offsetY: 0
+        };
+
+        // Canvas setup
+        const canvas = document.getElementById('visualCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Initialize
+        function init() {
+            calculateCanvasOffset();
+            updateAnchorList();
+            drawAll();
+            setupEventListeners();
+        }
+
+        function calculateCanvasOffset() {
+            // Center the coordinate system
+            state.offsetX = canvas.width / 2;
+            state.offsetY = canvas.height / 2;
+        }
+
+        function worldToCanvas(x, y) {
+            const scale = parseInt(document.getElementById('scaleInput').value) || config.scale;
+            return {
+                x: state.offsetX + x * scale,
+                y: state.offsetY - y * scale // Flip Y axis
+            };
+        }
+
+        function canvasToWorld(canvasX, canvasY) {
+            const scale = parseInt(document.getElementById('scaleInput').value) || config.scale;
+            return {
+                x: (canvasX - state.offsetX) / scale,
+                y: (state.offsetY - canvasY) / scale // Flip Y axis
+            };
+        }
+
+        function drawGrid() {
+            const scale = parseInt(document.getElementById('scaleInput').value) || config.scale;
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 1;
+
+            // Vertical lines
+            for (let x = 0; x < canvas.width; x += scale * config.gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+
+            // Horizontal lines
+            for (let y = 0; y < canvas.height; y += scale * config.gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // Draw axes
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 2;
+            
+            // X axis
+            ctx.beginPath();
+            ctx.moveTo(0, state.offsetY);
+            ctx.lineTo(canvas.width, state.offsetY);
+            ctx.stroke();
+
+            // Y axis
+            ctx.beginPath();
+            ctx.moveTo(state.offsetX, 0);
+            ctx.lineTo(state.offsetX, canvas.height);
+            ctx.stroke();
+
+            // Draw origin
+            ctx.fillStyle = '#666';
+            ctx.font = '12px Arial';
+            ctx.fillText('(0,0)', state.offsetX + 5, state.offsetY - 5);
+        }
+
+        function drawAnchor(anchor) {
+            const pos = worldToCanvas(anchor.x, anchor.y);
+            
+            // Draw range circle if distance is available
+            if (anchor.distance !== null && anchor.distance > 0) {
+                const scale = parseInt(document.getElementById('scaleInput').value) || config.scale;
+                ctx.strokeStyle = anchor.color + '40'; // Semi-transparent
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, anchor.distance * scale, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Draw anchor point
+            ctx.fillStyle = anchor.color;
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, config.anchorRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw anchor border
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Draw label
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(anchor.id, pos.x, pos.y + 5);
+
+            // Draw coordinates
+            ctx.font = '11px Arial';
+            ctx.fillStyle = '#666';
+            ctx.fillText(`(${anchor.x.toFixed(1)}, ${anchor.y.toFixed(1)})`, pos.x, pos.y + config.anchorRadius + 15);
+
+            // Draw distance if available
+            if (anchor.distance !== null) {
+                ctx.fillStyle = '#1565c0';
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText(`${anchor.distance.toFixed(2)}m`, pos.x, pos.y - config.anchorRadius - 5);
+            }
+        }
+
+        function drawTag() {
+            if (!state.tagPosition) return;
+
+            const pos = worldToCanvas(state.tagPosition.x, state.tagPosition.y);
+
+            // Draw path
+            if (state.tagPath.length > 1) {
+                ctx.strokeStyle = '#ff5722';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                const firstPos = worldToCanvas(state.tagPath[0].x, state.tagPath[0].y);
+                ctx.moveTo(firstPos.x, firstPos.y);
+                
+                for (let i = 1; i < state.tagPath.length; i++) {
+                    const pathPos = worldToCanvas(state.tagPath[i].x, state.tagPath[i].y);
+                    ctx.lineTo(pathPos.x, pathPos.y);
+                }
+                ctx.stroke();
+            }
+
+            // Draw tag point
+            ctx.fillStyle = '#ff5722';
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, config.tagRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw tag border
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Draw tag label
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('TAG', pos.x, pos.y + 5);
+
+            // Draw coordinates
+            ctx.font = '11px Arial';
+            ctx.fillStyle = '#666';
+            ctx.fillText(`(${state.tagPosition.x.toFixed(2)}, ${state.tagPosition.y.toFixed(2)})`, 
+                        pos.x, pos.y + config.tagRadius + 15);
+        }
+
+        function drawAll() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid
+            drawGrid();
+
+            // Draw anchors
+            state.anchors.forEach(anchor => drawAnchor(anchor));
+
+            // Draw tag
+            drawTag();
+        }
+
+        function trilaterate(anchors, distances) {
+            // Filter anchors with valid distances
+            const validAnchors = anchors.filter((a, i) => 
+                distances[i] !== null && distances[i] > 0
+            );
+
+            if (validAnchors.length < 3) {
+                return null;
+            }
+
+            // Use first 3 anchors for trilateration
+            const A = validAnchors.slice(0, 3);
+            const d = distances.filter(d => d !== null && d > 0).slice(0, 3);
+
+            // Trilateration using least squares
+            // Based on the algorithm from the Python visualizer
+            try {
+                const A_matrix = [];
+                const b_vector = [];
+
+                for (let i = 1; i < A.length; i++) {
+                    const x_diff = 2 * (A[i].x - A[0].x);
+                    const y_diff = 2 * (A[i].y - A[0].y);
+                    
+                    const val = (Math.pow(A[0].x, 2) - Math.pow(A[i].x, 2)) +
+                                (Math.pow(A[0].y, 2) - Math.pow(A[i].y, 2)) +
+                                (Math.pow(d[i], 2) - Math.pow(d[0], 2));
+                    
+                    A_matrix.push([x_diff, y_diff]);
+                    b_vector.push(val);
+                }
+
+                // Solve using least squares (simple 2x2 case)
+                const x = solveLeastSquares2x2(A_matrix, b_vector);
+                
+                if (x && !isNaN(x.x) && !isNaN(x.y)) {
+                    return x;
+                }
+            } catch (e) {
+                console.error('Trilateration error:', e);
+            }
+
+            return null;
+        }
+
+        function solveLeastSquares2x2(A, b) {
+            // For 2x2 system: solve using Cramer's rule or direct method
+            if (A.length < 2) return null;
+
+            const a11 = A[0][0], a12 = A[0][1];
+            const a21 = A[1][0], a22 = A[1][1];
+            const b1 = b[0], b2 = b[1];
+
+            const det = a11 * a22 - a12 * a21;
+            
+            if (Math.abs(det) < 1e-10) return null;
+
+            return {
+                x: (b1 * a22 - b2 * a12) / det,
+                y: (a11 * b2 - a21 * b1) / det
+            };
+        }
+
+        function updateTagPosition() {
+            const distances = state.anchors.map(a => a.distance);
+            const position = trilaterate(state.anchors, distances);
+
+            if (position) {
+                state.tagPosition = position;
+                
+                // Add to path
+                state.tagPath.push({ ...position, time: Date.now() });
+                if (state.tagPath.length > config.pathMaxLength) {
+                    state.tagPath.shift();
+                }
+
+                // Update UI
+                document.getElementById('tagStatus').textContent = 'Position calculated';
+                document.getElementById('tagPosition').textContent = 
+                    `X: ${position.x.toFixed(2)}m, Y: ${position.y.toFixed(2)}m`;
+            } else {
+                document.getElementById('tagStatus').textContent = 
+                    'Insufficient data (need 3+ anchors)';
+                document.getElementById('tagPosition').textContent = '';
+            }
+
+            drawAll();
+        }
+
+        function updateAnchorList() {
+            const list = document.getElementById('anchorList');
+            list.innerHTML = '';
+
+            state.anchors.forEach(anchor => {
+                const div = document.createElement('div');
+                div.className = 'anchor-item' + (anchor.distance !== null ? ' active' : '');
+                
+                div.innerHTML = `
+                    <div class="anchor-label">${anchor.id}</div>
+                    <div class="anchor-coords">
+                        Position: (${anchor.x.toFixed(1)}, ${anchor.y.toFixed(1)})m
+                    </div>
+                    ${anchor.distance !== null ? 
+                        `<div class="distance">Distance: ${anchor.distance.toFixed(2)}m</div>` : 
+                        '<div class="distance">No signal</div>'
+                    }
+                `;
+                
+                list.appendChild(div);
+            });
+        }
+
+        function parseSerialLine(line) {
+            // Parse lines like: "[TAG] A0 = 2.35 m" or "13:38:49.068 -> [TAG] A2 = 3.28 m"
+            const match = line.match(/\[TAG\]\s*A(\d+)\s*=\s*([0-9]*\.?[0-9]+)\s*m/i);
+            if (match) {
+                return {
+                    anchorId: 'A' + match[1],
+                    distance: parseFloat(match[2])
+                };
+            }
+            return null;
+        }
+
+        function handleSerialData(line) {
+            const data = parseSerialLine(line);
+            if (data) {
+                const anchor = state.anchors.find(a => a.id === data.anchorId);
+                if (anchor) {
+                    anchor.distance = data.distance;
+                } else {
+                    // Auto-add anchor if it doesn't exist
+                    state.anchors.push({
+                        id: data.anchorId,
+                        x: state.anchors.length * 2,
+                        y: 0,
+                        distance: data.distance,
+                        color: '#' + Math.floor(Math.random()*16777215).toString(16)
+                    });
+                }
+                updateAnchorList();
+                updateTagPosition();
+            }
+        }
+
+        // WebSocket functions
+        function connectWebSocket() {
+            const url = document.getElementById('wsUrl').value;
+            
+            try {
+                state.ws = new WebSocket(url);
+                
+                state.ws.onopen = () => {
+                    state.isConnected = true;
+                    document.getElementById('connectionStatus').textContent = 'Connected';
+                    document.getElementById('connectionStatus').className = 'status connected';
+                    document.getElementById('connectBtn').style.display = 'none';
+                    document.getElementById('disconnectBtn').style.display = 'block';
+                };
+
+                state.ws.onmessage = (event) => {
+                    handleSerialData(event.data);
+                };
+
+                state.ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+
+                state.ws.onclose = () => {
+                    state.isConnected = false;
+                    document.getElementById('connectionStatus').textContent = 'Disconnected';
+                    document.getElementById('connectionStatus').className = 'status disconnected';
+                    document.getElementById('connectBtn').style.display = 'block';
+                    document.getElementById('disconnectBtn').style.display = 'none';
+                };
+            } catch (error) {
+                alert('Failed to connect: ' + error.message);
+            }
+        }
+
+        function disconnectWebSocket() {
+            if (state.ws) {
+                state.ws.close();
+                state.ws = null;
+            }
+        }
+
+        // Event listeners
+        function setupEventListeners() {
+            document.getElementById('connectBtn').addEventListener('click', connectWebSocket);
+            document.getElementById('disconnectBtn').addEventListener('click', disconnectWebSocket);
+            
+            document.getElementById('parseBtn').addEventListener('click', () => {
+                const input = document.getElementById('serialInput').value;
+                const lines = input.split('\n');
+                lines.forEach(line => {
+                    if (line.trim()) {
+                        handleSerialData(line);
+                    }
+                });
+            });
+
+            document.getElementById('addAnchorBtn').addEventListener('click', () => {
+                const id = prompt('Anchor ID (e.g., A3):');
+                if (!id) return;
+                
+                const x = parseFloat(prompt('X coordinate (meters):', '0'));
+                const y = parseFloat(prompt('Y coordinate (meters):', '0'));
+                
+                if (!isNaN(x) && !isNaN(y)) {
+                    state.anchors.push({
+                        id: id,
+                        x: x,
+                        y: y,
+                        distance: null,
+                        color: '#' + Math.floor(Math.random()*16777215).toString(16)
+                    });
+                    updateAnchorList();
+                    drawAll();
+                }
+            });
+
+            document.getElementById('scaleInput').addEventListener('change', drawAll);
+            
+            document.getElementById('resetViewBtn').addEventListener('click', () => {
+                calculateCanvasOffset();
+                drawAll();
+            });
+
+            document.getElementById('clearPathBtn').addEventListener('click', () => {
+                state.tagPath = [];
+                drawAll();
+            });
+
+            // Canvas click to add/move anchors
+            canvas.addEventListener('click', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const canvasX = e.clientX - rect.left;
+                const canvasY = e.clientY - rect.top;
+                const worldPos = canvasToWorld(canvasX, canvasY);
+                
+                console.log(`Clicked at world coordinates: (${worldPos.x.toFixed(2)}, ${worldPos.y.toFixed(2)})`);
+            });
+        }
+
+        // Auto-update simulation (for demo purposes)
+        function startDemo() {
+            let t = 0;
+            setInterval(() => {
+                if (!state.isConnected) {
+                    // Simulate moving tag
+                    t += 0.1;
+                    state.anchors.forEach((anchor, i) => {
+                        const tagX = 1.5 + Math.cos(t) * 1;
+                        const tagY = 1 + Math.sin(t) * 1;
+                        const dist = Math.sqrt(
+                            Math.pow(tagX - anchor.x, 2) + 
+                            Math.pow(tagY - anchor.y, 2)
+                        );
+                        // Uncomment to enable demo mode:
+                        // anchor.distance = dist + (Math.random() - 0.5) * 0.1;
+                    });
+                    // Uncomment to enable demo mode:
+                    // updateAnchorList();
+                    // updateTagPosition();
+                }
+            }, 1000);
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            init();
+            // startDemo(); // Uncomment for demo mode
+        });
+    </script>
+</body>
+</html>

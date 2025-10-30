@@ -71,3 +71,25 @@ The appearance of the test program, simple send and receive data. TX sends, RX r
 ## range
 
 Simple test program, respectively download range_tx and range_rx. range_rx's serial port outputs distance.
+
+## Visualization Tools
+
+### Web Visualizer (NEW)
+
+A modern, browser-based alternative to Python visualizers. Located in `web_visualizer/`.
+
+**Features:**
+- Zero installation - just open index.html in any web browser
+- Real-time visualization via WebSocket
+- Manual data input from serial logs
+- Interactive anchor positioning
+- Trilateration-based tag location calculation
+- No dependencies required
+
+See [web_visualizer/README.md](web_visualizer/README.md) for detailed instructions.
+
+### Python Visualizers
+
+**uwb_visualizer** - Desktop visualizer using matplotlib. Requires Python and dependencies.
+
+**IndoorPositioning** - Original indoor positioning display using Turtle graphics.
